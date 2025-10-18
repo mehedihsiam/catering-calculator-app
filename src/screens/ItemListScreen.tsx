@@ -4,17 +4,24 @@ import {
   FlatList,
   StyleSheet,
   TouchableOpacity,
+  TextInput,
 } from 'react-native';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import DefaultItems from '../data/defaultItems.json';
 import ListItem from '../components/ListItem';
 import colors from '../data/colors.json';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-type TQuantities = { [key: string]: number };
+import TQuantities from '../types/quantities';
+import fetchItemList from '../utils/fetchItemList';
 
 export default function ItemListScreen() {
-  const [quantities, setQuantities] = React.useState<TQuantities>({});
+  const [quantities, setQuantities] = useState<TQuantities>({});
+  const [newItemName, setNewItemName] = useState<string>('');
+  const [newItemQuantity, setNewItemQuantity] = useState<number | undefined>(
+    undefined,
+  );
+  const [visibleNewItemInput, setVisibleNewItemInput] =
+    useState<boolean>(false);
 
   const handleQuantityChange = (quantity: number, title: string) => {
     setQuantities(prev => {
@@ -22,20 +29,43 @@ export default function ItemListScreen() {
     });
   };
 
+  const handleAddItem = async () => {
+    if (!visibleNewItemInput) {
+      setVisibleNewItemInput(true);
+    } else {
+      if (newItemName.trim() !== '' && newItemQuantity !== undefined) {
+        const values = { ...quantities, [newItemName]: newItemQuantity };
+        setQuantities(values);
+        const jsonValue = JSON.stringify(values);
+        await AsyncStorage.setItem('itemQuantities', jsonValue);
+        setNewItemName('');
+        setNewItemQuantity(undefined);
+        setVisibleNewItemInput(false);
+      }
+    }
+  };
+
   const handleSave = async () => {
-    console.log('Saved', quantities);
     const jsonValue = JSON.stringify(quantities);
     await AsyncStorage.setItem('itemQuantities', jsonValue);
   };
 
+  const handleLoadItems = async () => {
+    const jsonValue = await fetchItemList();
+    if (jsonValue) {
+      setQuantities(jsonValue);
+    } else {
+      const initialQuantities: TQuantities = {};
+      DefaultItems.forEach(item => {
+        initialQuantities[item] = 0;
+      });
+
+      setQuantities(initialQuantities);
+    }
+  };
+
   useEffect(() => {
-    const initialQuantities: TQuantities = {};
-
-    DefaultItems.forEach(item => {
-      initialQuantities[item] = 0;
-    });
-
-    setQuantities(initialQuantities);
+    handleLoadItems();
   }, []);
 
   return (
@@ -55,6 +85,35 @@ export default function ItemListScreen() {
             onQuantityChange={handleQuantityChange}
           />
         )}
+        ListFooterComponent={
+          <View style={styles.footerContainer}>
+            {visibleNewItemInput && (
+              <View style={styles.inputContainer}>
+                <TextInput
+                  placeholder="নতুন আইটেমের নাম"
+                  value={newItemName}
+                  onChangeText={text => setNewItemName(text)}
+                  style={styles.input}
+                />
+                <TextInput
+                  placeholder="পরিমাণ"
+                  value={newItemQuantity?.toString()}
+                  onChangeText={text => setNewItemQuantity(Number(text))}
+                  style={styles.input}
+                  keyboardType="numeric"
+                />
+              </View>
+            )}
+            <TouchableOpacity onPress={handleAddItem} activeOpacity={0.7}>
+              <Text style={styles.footerText}>
+                +{' '}
+                {visibleNewItemInput
+                  ? 'আইটেম সেইভ করুন'
+                  : 'নতুন আইটেম যোগ করুন'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        }
       />
       <TouchableOpacity
         onPress={handleSave}
@@ -93,5 +152,27 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  footerContainer: {
+    alignItems: 'flex-end',
+    padding: 10,
+  },
+  footerText: {
+    color: colors.primary,
+    fontWeight: 'bold',
+    paddingVertical: 10,
+  },
+  inputContainer: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 5,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    padding: 5,
+    flex: 1,
   },
 });

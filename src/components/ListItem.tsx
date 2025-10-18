@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, TextInput } from 'react-native';
-import React from 'react';
+import React, { useEffect } from 'react';
 
 type TProps = {
   title: string;
@@ -16,6 +16,14 @@ export default function ListItem(props: TProps) {
       props.onQuantityChange(qty, props.title);
     }
   };
+
+  useEffect(() => {
+    if (props.quantity) {
+      setQuantity(props.quantity.toString());
+    } else {
+      setQuantity('');
+    }
+  }, [props.quantity]);
 
   return (
     <View style={styles.container}>
