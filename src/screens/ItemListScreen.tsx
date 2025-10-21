@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
+  ToastAndroid,
 } from 'react-native';
 import React, { useEffect, useState } from 'react';
 import DefaultItems from '../data/defaultItems.json';
@@ -15,7 +16,7 @@ import TQuantities from '../types/quantities';
 import fetchItemList from '../utils/fetchItemList';
 
 export default function ItemListScreen() {
-  const [quantities, setQuantities] = useState<TQuantities>({});
+  const [quantities, setQuantities] = useState<TQuantities>([]);
   const [newItemName, setNewItemName] = useState<string>('');
   const [newItemQuantity, setNewItemQuantity] = useState<number | undefined>(
     undefined,
@@ -24,9 +25,24 @@ export default function ItemListScreen() {
     useState<boolean>(false);
 
   const handleQuantityChange = (quantity: number, title: string) => {
-    setQuantities(prev => {
-      return { ...prev, [title]: quantity };
-    });
+    const existingItem = quantities.find(
+      _quantity => _quantity.itemName.trim() === title.trim(),
+    );
+    if (existingItem) {
+      const values: TQuantities = quantities.map(item => {
+        if (item.itemName.trim() === title.trim()) {
+          return { ...item, quantity };
+        }
+        return item;
+      });
+      setQuantities(values);
+    } else {
+      const values: TQuantities = [
+        ...quantities,
+        { itemName: title, quantity },
+      ];
+      setQuantities(values);
+    }
   };
 
   const handleAddItem = async () => {
@@ -34,7 +50,10 @@ export default function ItemListScreen() {
       setVisibleNewItemInput(true);
     } else {
       if (newItemName.trim() !== '' && newItemQuantity !== undefined) {
-        const values = { ...quantities, [newItemName]: newItemQuantity };
+        const values: TQuantities = [
+          ...quantities,
+          { itemName: newItemName, quantity: newItemQuantity },
+        ];
         setQuantities(values);
         const jsonValue = JSON.stringify(values);
         await AsyncStorage.setItem('itemQuantities', jsonValue);
@@ -46,8 +65,22 @@ export default function ItemListScreen() {
   };
 
   const handleSave = async () => {
-    const jsonValue = JSON.stringify(quantities);
-    await AsyncStorage.setItem('itemQuantities', jsonValue);
+    try {
+      const filteredQuantities = quantities.filter(item => item.quantity > 0);
+
+      const jsonValue = JSON.stringify(filteredQuantities);
+      await AsyncStorage.setItem('itemQuantities', jsonValue);
+      ToastAndroid.show(
+        'আইটেমগুলি সফলভাবে সংরক্ষণ করা হয়েছে!',
+        ToastAndroid.SHORT,
+      );
+    } catch (error) {
+      console.log('Error saving item quantities:', error);
+      ToastAndroid.show(
+        'আইটেমগুলি সংরক্ষণ করতে ব্যর্থ হয়েছে!',
+        ToastAndroid.SHORT,
+      );
+    }
   };
 
   const handleLoadItems = async () => {
@@ -55,12 +88,13 @@ export default function ItemListScreen() {
     if (jsonValue) {
       setQuantities(jsonValue);
     } else {
-      const initialQuantities: TQuantities = {};
+      const initialQuantities: TQuantities = [];
       DefaultItems.forEach(item => {
-        initialQuantities[item] = 0;
+        initialQuantities.push({ itemName: item, quantity: 0 });
       });
 
       setQuantities(initialQuantities);
+      console.log(initialQuantities);
     }
   };
 
@@ -76,12 +110,12 @@ export default function ItemListScreen() {
       </View>
       <FlatList
         style={{ flex: 1 }}
-        data={Object.keys(quantities)}
+        data={quantities}
         keyExtractor={(item, index) => index.toString()}
         renderItem={({ item }) => (
           <ListItem
-            title={item}
-            quantity={quantities[item]}
+            title={item.itemName}
+            quantity={item.quantity}
             onQuantityChange={handleQuantityChange}
           />
         )}
